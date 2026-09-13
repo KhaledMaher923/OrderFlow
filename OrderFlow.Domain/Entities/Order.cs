@@ -13,7 +13,7 @@ namespace OrderFlow.Domain.Entities
         private readonly List<OrderItem> _items = new();
 
         public int Id { get; private set; }
-        public string CutomerName { get; private set; } = null!;
+        public string CustomerName { get; private set; } = null!;
         public OrderStatus Status { get; private set; }
         public DateTime CreatedAtUtc { get; private set; }
 
@@ -34,7 +34,7 @@ namespace OrderFlow.Domain.Entities
             if (itemList.Count == 0)
                 throw new DomainException("An order must contain at least one item.");
 
-            CutomerName = customerName;
+            CustomerName = customerName;
             _items.AddRange(itemList);
             Status = OrderStatus.Pending;
             CreatedAtUtc = DateTime.UtcNow;
