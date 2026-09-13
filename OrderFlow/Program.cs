@@ -1,3 +1,7 @@
+using Microsoft.AspNetCore.Diagnostics;
+using OrderFlow.Application;
+using OrderFlow.Application.Common.Exceptions;
+using OrderFlow.Infrastructure;
 
 namespace OrderFlow
 {
@@ -7,12 +11,12 @@ namespace OrderFlow
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
-
             builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+
+            builder.Services.AddApplication();
+            builder.Services.AddInfrastructure(builder.Configuration);
 
             var app = builder.Build();
 
@@ -23,10 +27,26 @@ namespace OrderFlow
                 app.UseSwaggerUI();
             }
 
+            app.UseExceptionHandler(errorApp =>
+            {
+                errorApp.Run(async context =>
+                {
+                    var feature = context.Features.Get<IExceptionHandlerFeature>();
+
+                    if(feature?.Error is ValidationException validationEx)
+                    {
+                        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                        await context.Response.WriteAsJsonAsync(new { errors = validationEx.Errors });
+                        return;
+                    }
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    await context.Response.WriteAsJsonAsync(new { error = "An unexpected error occurred." });
+                });
+            });
+
             app.UseHttpsRedirection();
 
             app.UseAuthorization();
-
 
             app.MapControllers();
 
