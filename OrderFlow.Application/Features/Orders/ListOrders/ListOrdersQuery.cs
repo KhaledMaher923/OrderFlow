@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Application.Common.Interfaces;
+using OrderFlow.Application.Common.Observability;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,11 +25,17 @@ namespace OrderFlow.Application.Features.Orders.ListOrders
 
         public async Task<List<OrderSummaryResponse>> Handle(ListOrdersQuery request, CancellationToken cancellationToken)
         {
-            return await _dbContext.Orders
+            using var activity = OrderFlowActivitySource.Source.StartActivity("GetOrders");
+
+            var result = await _dbContext.Orders
                 .AsNoTracking()
                 .OrderByDescending(o => o.CreatedAtUtc)
                 .Select(o => new OrderSummaryResponse(o.Id, o.CustomerName, o.Status.ToString(), o.Total, o.CreatedAtUtc))
                 .ToListAsync(cancellationToken);
+
+            activity?.SetTag("orders.count", result.Count);
+
+            return result;
         }
     }
 

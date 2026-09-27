@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OrderFlow.Application.Common.Interfaces;
+using OrderFlow.Application.Common.Observability;
 using OrderFlow.Domain.Enums;
 using OrderFlow.Infrastructure.Persistence;
 using System;
@@ -56,6 +57,8 @@ namespace OrderFlow.Infrastructure.BackgroundServices
             if (pendingOrders.Count == 0)
             {
                 _logger.LogInformation("Pending order processor found no pending orders to process");
+                OrderFlowMetrics.WorkerRuns.Add(1, new KeyValuePair<string, object?>("worker", "PendingOrderProcessor"));
+                OrderFlowMetrics.ReportPendingOrdersCount(0);
                 return; 
             }
 
@@ -65,6 +68,10 @@ namespace OrderFlow.Infrastructure.BackgroundServices
             }
 
             await db.SaveChangesAsync(cancellationToken);
+
+            OrderFlowMetrics.WorkerRuns.Add(1, new KeyValuePair<string, object?>("worker", "PendingOrderProcessor"));
+            OrderFlowMetrics.OrdersCompletedByWorker.Add(pendingOrders.Count);
+            OrderFlowMetrics.ReportPendingOrdersCount(0);
 
             _logger.LogInformation($"Pending Order processor moved {pendingOrders.Count} orders to Completed");
         }

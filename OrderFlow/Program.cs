@@ -1,10 +1,15 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using OrderFlow.Application;
 using OrderFlow.Application.Common.Exceptions;
+using OrderFlow.Application.Common.Observability;
 using OrderFlow.Infrastructure;
 using Serilog;
 using System.Text.Json;
+using OpenTelemetry;
 
 namespace OrderFlow
 {
@@ -39,6 +44,19 @@ namespace OrderFlow
                     redisConnectionString: builder.Configuration.GetConnectionString("Redis")!,
                     name: "redis",
                     tags: new[] { "cache", "redis" });
+
+            builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("OrderFlow.Api"))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddMeter(OrderFlowMetrics.MeterName)
+        .AddPrometheusExporter())
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddSqlClientInstrumentation()
+        .AddSource(OrderFlowActivitySource.SourceName));
 
             var app = builder.Build();
 
@@ -89,6 +107,8 @@ namespace OrderFlow
                     await context.Response.WriteAsync(payload);
                 }
             });
+
+            app.MapPrometheusScrapingEndpoint();
 
             app.UseAuthorization();
 

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OrderFlow.Application.Common.Interfaces;
+using OrderFlow.Application.Common.Observability;
 using OrderFlow.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -39,15 +40,19 @@ namespace OrderFlow.Application.Features.Orders.GetOrderById
 
         public async Task<OrderDetailsResponse?> Handle(GetOrderByIdQuery request, CancellationToken cancellationToken)
         {
+            using var activity = OrderFlowActivitySource.Source.StartActivity("GetOrderById");
+            activity?.SetTag("order.id", request.OrderId);
+
             var cacheKey = $"order:{request.OrderId}";
 
             var cached = await _cache.GetAsync<OrderDetailsResponse>(cacheKey, cancellationToken);
             if (cached is not null)
             {
+                activity?.SetTag("cache.hit", true);
                 _logger.LogInformation($"Cache hit for the order {request.OrderId}");
                 return cached;
             }
-
+            activity?.SetTag("cache.hit", false);
             _logger.LogInformation($"Cache miss for order {request.OrderId}, querying database");
 
             var order = await _dbcontext.Orders
