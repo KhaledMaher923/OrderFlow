@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using OrderFlow.Api.HealthChecks;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -10,6 +11,7 @@ using OrderFlow.Infrastructure;
 using Serilog;
 using System.Text.Json;
 using OpenTelemetry;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace OrderFlow
 {
@@ -45,18 +47,24 @@ namespace OrderFlow
                     name: "redis",
                     tags: new[] { "cache", "redis" });
 
+            builder.Services.Configure<HealthCheckPublisherOptions>(options =>
+            {
+                options.Period = TimeSpan.FromSeconds(10);
+            });
+            builder.Services.AddSingleton<IHealthCheckPublisher, MetricsHealthCheckPublisher>();
+
             builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource.AddService("OrderFlow.Api"))
-    .WithMetrics(metrics => metrics
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        .AddMeter(OrderFlowMetrics.MeterName)
-        .AddPrometheusExporter())
-    .WithTracing(tracing => tracing
-        .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation()
-        .AddSqlClientInstrumentation()
-        .AddSource(OrderFlowActivitySource.SourceName));
+                .ConfigureResource(resource => resource.AddService("OrderFlow.Api"))
+                .WithMetrics(metrics => metrics
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddMeter(OrderFlowMetrics.MeterName)
+                    .AddPrometheusExporter())
+                .WithTracing(tracing => tracing
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddSqlClientInstrumentation()
+                    .AddSource(OrderFlowActivitySource.SourceName));
 
             var app = builder.Build();
 

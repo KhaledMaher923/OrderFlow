@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Linq;
@@ -37,5 +38,19 @@ namespace OrderFlow.Application.Common.Observability
             description: "Current number of orders in Pending status, as of the last worker cycle");
 
         public static void ReportPendingOrdersCount(long count) => _pendingOrdersCount = count;
+
+        // Gauge: 1 if the dependency's most recent health check was Healthy, 0 otherwise. Tagged by
+        // dependency name (e.g. "sqlserver", "redis") so a single Grafana/Prometheus query can target
+        // one specific dependency, e.g. orderflow_dependency_up{dependency="redis"} == 0.
+        private static readonly ConcurrentDictionary<string, int> DependencyStatus = new();
+
+        public static readonly ObservableGauge<int> DependencyUp = Meter.CreateObservableGauge(
+            "orderflow.dependency.up",
+            () => DependencyStatus.Select(kv =>
+                new Measurement<int>(kv.Value, new KeyValuePair<string, object?>("dependency", kv.Key))),
+            description: "1 if the named dependency's last health check was healthy, 0 otherwise");
+
+        public static void ReportDependencyStatus(string dependencyName, bool healthy) =>
+            DependencyStatus[dependencyName] = healthy ? 1 : 0;
     }
 }
