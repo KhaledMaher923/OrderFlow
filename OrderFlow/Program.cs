@@ -64,7 +64,8 @@ namespace OrderFlow
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddSqlClientInstrumentation()
-                    .AddSource(OrderFlowActivitySource.SourceName));
+                    .AddSource(OrderFlowActivitySource.SourceName)
+                    .AddOtlpExporter(options => { options.Endpoint = new Uri("http://localhost:4317"); }));
 
             var app = builder.Build();
 
