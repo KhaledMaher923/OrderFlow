@@ -54,7 +54,8 @@ namespace OrderFlow.Infrastructure.BackgroundServices
                 .ToListAsync(cancellationToken);
 
             if (pendingOrders.Count == 0)
-            { 
+            {
+                _logger.LogInformation("Pending order processor found no pending orders to process");
                 return; 
             }
 
@@ -64,6 +65,8 @@ namespace OrderFlow.Infrastructure.BackgroundServices
             }
 
             await db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation($"Pending Order processor moved {pendingOrders.Count} orders to Completed");
         }
     }
 }

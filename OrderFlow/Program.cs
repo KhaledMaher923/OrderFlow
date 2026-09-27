@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using OrderFlow.Application;
 using OrderFlow.Application.Common.Exceptions;
 using OrderFlow.Infrastructure;
+using Serilog;
+using System.Text.Json;
 
 namespace OrderFlow
 {
@@ -11,12 +14,31 @@ namespace OrderFlow
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            builder.Host.UseSerilog((context, services, configuration) => configuration
+                .ReadFrom.Configuration(context.Configuration)
+                .Enrich.FromLogContext()
+                .WriteTo.Console()
+                .WriteTo.File(
+                    "logs/orderflow-.log",
+                    rollingInterval: RollingInterval.Day,
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}"));
+
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
             builder.Services.AddApplication();
             builder.Services.AddInfrastructure(builder.Configuration);
+
+            builder.Services.AddHealthChecks()
+                .AddSqlServer(
+                    connectionString: builder.Configuration.GetConnectionString("SqlServer")!,
+                    name: "sqlserver",
+                    tags: new[] { "db", "sql" })
+                .AddRedis(
+                    redisConnectionString: builder.Configuration.GetConnectionString("Redis")!,
+                    name: "redis",
+                    tags: new[] { "cache", "redis" });
 
             var app = builder.Build();
 
@@ -45,6 +67,28 @@ namespace OrderFlow
             });
 
             app.UseHttpsRedirection();
+
+            app.MapHealthChecks("/health", new HealthCheckOptions
+            {
+                ResponseWriter = async (context, report) =>
+                {
+                    context.Response.ContentType = "application/json";
+
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        status = report.Status.ToString(),
+                        checks = report.Entries.Select(e => new
+                        {
+                            name = e.Key,
+                            status = e.Value.Status.ToString(),
+                            description = e.Value.Description,
+                            durationMs = e.Value.Duration.TotalMilliseconds
+                        })
+                    });
+
+                    await context.Response.WriteAsync(payload);
+                }
+            });
 
             app.UseAuthorization();
 

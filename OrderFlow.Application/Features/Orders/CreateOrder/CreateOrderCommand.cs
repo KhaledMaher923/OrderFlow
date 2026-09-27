@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using OrderFlow.Application.Common.Interfaces;
 using OrderFlow.Domain.Entities;
 using System;
@@ -42,11 +43,13 @@ namespace OrderFlow.Application.Features.Orders.CreateOrder
     {
         private readonly IApplicationDbContext _dbcontext;
         private readonly ICacheService _cache;
+        private readonly ILogger<CreateOrderCommandHandler> _logger;
 
-        public CreateOrderCommandHandler(IApplicationDbContext dbcontext, ICacheService cache)
+        public CreateOrderCommandHandler(IApplicationDbContext dbcontext, ICacheService cache, ILogger<CreateOrderCommandHandler> logger)
         {
             _dbcontext = dbcontext;
             _cache = cache;
+            _logger = logger;
         }
 
         public async Task<CreateOrderResponse> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -61,6 +64,10 @@ namespace OrderFlow.Application.Features.Orders.CreateOrder
             await _dbcontext.SaveChangesAsync(cancellationToken);
 
             await _cache.RemoveAsync($"order: {order.Id}", cancellationToken);
+
+            _logger.LogInformation(
+                $"Order {order.Id} created for {order.CustomerName} with {order.ItemCount} items, total {order.Total}"
+                );
 
             return new CreateOrderResponse(order.Id, order.Total, order.ItemCount);
         }

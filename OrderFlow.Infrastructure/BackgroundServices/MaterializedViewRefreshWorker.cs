@@ -35,6 +35,7 @@
                     }
                     catch (Exception ex)
                     {
+                        // Never let a bad refresh cycle kill the worker loop.
                         _logger.LogError(ex, "Materialized view refresh failed.");
                     }
                 }
@@ -78,6 +79,8 @@
                 }
 
                 await db.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation($"Materialized view refreshed with {rows.Count} rows");
             }
         }
     }

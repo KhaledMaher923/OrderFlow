@@ -1,6 +1,8 @@
 ﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using OrderFlow.Application.Common.Interfaces;
+using OrderFlow.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,11 +28,13 @@ namespace OrderFlow.Application.Features.Orders.GetOrderById
 
         private readonly IApplicationDbContext _dbcontext;
         private readonly ICacheService _cache;
+        private readonly ILogger<GetOrderByIdQueryHandler> _logger;
 
-        public GetOrderByIdQueryHandler(IApplicationDbContext dbcontext, ICacheService cache)
+        public GetOrderByIdQueryHandler(IApplicationDbContext dbcontext, ICacheService cache, ILogger<GetOrderByIdQueryHandler> logger)
         {
             _dbcontext = dbcontext;
             _cache = cache;
+            _logger = logger;
         }
 
         public async Task<OrderDetailsResponse?> Handle(GetOrderByIdQuery request, CancellationToken cancellationToken)
@@ -40,8 +44,11 @@ namespace OrderFlow.Application.Features.Orders.GetOrderById
             var cached = await _cache.GetAsync<OrderDetailsResponse>(cacheKey, cancellationToken);
             if (cached is not null)
             {
+                _logger.LogInformation($"Cache hit for the order {request.OrderId}");
                 return cached;
             }
+
+            _logger.LogInformation($"Cache miss for order {request.OrderId}, querying database");
 
             var order = await _dbcontext.Orders
                 .AsNoTracking()
@@ -58,8 +65,14 @@ namespace OrderFlow.Application.Features.Orders.GetOrderById
 
             if(order is  not null)
             {
-                await _cache.SetAsync(cacheKey, order, CacheTtl, cancellationToken); ;
+                await _cache.SetAsync(cacheKey, order, CacheTtl, cancellationToken);
+                _logger.LogInformation($"Order {request.OrderId} retrieved and cached");
             }
+            else
+            {
+                _logger.LogWarning($"Order {request.OrderId} not found");
+            }
+
 
             return order;
         }
@@ -67,3 +80,4 @@ namespace OrderFlow.Application.Features.Orders.GetOrderById
     }
 
 }
+    
