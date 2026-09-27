@@ -2,6 +2,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using OrderFlow.Application.Common.Interfaces;
+using OrderFlow.Application.Common.Observability;
 using OrderFlow.Domain.Entities;
 using System;
 using System.Collections.Generic;
@@ -54,6 +55,8 @@ namespace OrderFlow.Application.Features.Orders.CreateOrder
 
         public async Task<CreateOrderResponse> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
         {
+            using var activity = OrderFlowActivitySource.Source.StartActivity("CreateOrder");
+
             var items = request.Items
                 .Select(i => new OrderItem(i.ProductName, i.Quantity, i.UnitPrice))
                 .ToList();
@@ -64,6 +67,11 @@ namespace OrderFlow.Application.Features.Orders.CreateOrder
             await _dbcontext.SaveChangesAsync(cancellationToken);
 
             await _cache.RemoveAsync($"order: {order.Id}", cancellationToken);
+
+            OrderFlowMetrics.OrdersCreated.Add(1);
+            activity?.SetTag("order.id", order.Id);
+            activity?.SetTag("order.total", order.Total);
+
 
             _logger.LogInformation(
                 $"Order {order.Id} created for {order.CustomerName} with {order.ItemCount} items, total {order.Total}"
